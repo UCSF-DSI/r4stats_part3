@@ -1,0 +1,128 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+
+
+```{r}
+library(tidyverse)
+library(palmerpenguins)
+library(boot)
+```
+
+
+```{r}
+penguins_df <- penguins
+penguins_df
+```
+```{r}
+bootstrap_penguin_test <- function(measurement, interval){
+  func_stat <- function(data, i) {
+    stat <- data[i, ] %>%
+      summarize(boot_stat = mean({{measurement}}, na.rm = TRUE)) %>%
+      pull(boot_stat) 
+    
+    return(stat)
+  }
+  
+  adelie_ci <- penguins_df %>%
+    filter(species == "Adelie") %>%
+    boot(statistic = func_stat, R = 1000, sim = "ordinary") %>%
+    boot.ci(conf = interval, type = "bca")
+  
+  chinstrap_b_ci <- penguins_df %>%
+    filter(species == "Chinstrap") %>%
+    boot(statistic = func_stat, R = 1000, sim = "ordinary") %>%
+    boot.ci(conf = interval, type = "bca")
+  
+  gentoo_b_ci <- penguins_df %>%
+    filter(species == "Gentoo") %>%
+    boot(statistic = func_stat, R = 1000, sim = "ordinary") %>%
+    boot.ci(conf = interval, type = "bca")
+  
+  ci_plot <- rbind(adelie_ci$bca, chinstrap_b_ci$bca, gentoo_b_ci$bca) %>% 
+    cbind(c("Adelie", "Chinstrap", "Gentoo")) %>%
+    as_tibble() %>%
+    ggplot() +
+      geom_errorbarh(aes(y = V6, xmin = V4, xmax = V5)) + 
+      theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust=1)) +
+      ylab("Species") + 
+      ggtitle(paste0("Confidence Interval (", interval, ") of Penguin Size"))
+  
+  return(ci_plot)
+}
+```
+
+```{r}
+bootstrap_penguin_test(
+  measurement = `flipper_length_mm`, 
+  interval = 0.95
+)
+```
+
+# Hypothesis Test Example 1:
+
+Is there a difference in flipper size between chinstrap and gentoo penguins?
+
+H_null: There is no difference in flipper size between chinstrap and gentoo penguins
+- mean_flipper_size_chinstrap == mean_flipper_size_gentoo
+H_alternative: There is a difference in flipper size between chinstrap and gentoo penguins
+- mean_flipper_size_chinstrap != mean_flipper_size_gentoo
+
+Have enough evidence at the 5 percent significant level to reject the null hypothesis and conclude that there is a difference in mean flipper size between chinstrap and gentoo penguins.
+
+## Assumptions
+
+### QQ Plot
+
+```{r}
+penguins_df %>%
+  drop_na() %>%
+  filter(species == "Gentoo") %>%
+  ggplot() +
+    stat_qq(aes(sample = flipper_length_mm, color = sex)) +
+    stat_qq_line(aes(sample = flipper_length_mm, color = sex))
+```
+
+### Shapiro Wilk Test
+
+```{r}
+penguins_df %>%
+  drop_na() %>%
+  filter(species == "Gentoo", sex == "male") %>%
+  pull(flipper_length_mm) %>%
+  shapiro.test()
+```
+
+```{r}
+penguins_df %>%
+  drop_na() %>%
+  filter(species == "Gentoo", sex == "female") %>%
+  pull(flipper_length_mm) %>%
+  shapiro.test()
+```
+## t test
+```{r}
+male_flippers <- penguins_df %>%
+  filter(species == "Gentoo", sex == "male") %>%
+  pull(flipper_length_mm)
+
+female_flippers <- penguins_df %>%
+  filter(species == "Gentoo", sex == "female") %>%
+  pull(flipper_length_mm)
+
+t.test(male_flippers, female_flippers, alternative = "two.sided")
+```
+
+```{r}
+wilcox.test(male_flippers, female_flippers, alternative = "two.sided")
+```
+
+
+
+
+
+
+
+
